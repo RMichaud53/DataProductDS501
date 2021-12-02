@@ -1,0 +1,169 @@
+---
+title: "DS 501 Case Study 3"
+author: "Ryan Michaud"
+date: "12/1/2021"
+output: pdf_document
+---
+## Introduction
+For this final case study, I will be creating a data product in the form of an R Shiny application. My topic for this data product will be college football. I found a data set online with FBS college football team statistics from the last 8 seasons that detail different things relating to offense, defense, game outcome, team record, and team rank. I will be using this data to explore and present various insights into different relations between these statistics and how they can be used by people like coaches or others to make decisions in the future.
+
+```{r, eval=F}
+library(dbplyr)
+library(tibble)
+library(janitor)
+library(ggplot2)
+
+# Import downloaded data files by reading the csv's, 
+# one for each of the last 8 seasons
+cfb13 = read.csv("cfb13.csv")
+cfb14 = read.csv("cfb14.csv")
+cfb15 = read.csv("cfb15.csv")
+cfb16 = read.csv("cfb16.csv")
+cfb17 = read.csv("cfb17.csv")
+cfb18 = read.csv("cfb18.csv")
+cfb19 = read.csv("cfb19.csv")
+cfb20 = read.csv("cfb20.csv")
+
+# Add column to each data frame that stipulates what year the data is from to 
+# prepare to bring all years into one data frame
+cfb13 = cfb13 %>% add_column(Year = 2013, .after = "Team")
+cfb14 = cfb14 %>% add_column(Year = 2014, .after = "Team")
+cfb15 = cfb15 %>% add_column(Year = 2015, .after = "Team")
+cfb16 = cfb16 %>% add_column(Year = 2016, .after = "Team")
+cfb17 = cfb17 %>% add_column(Year = 2017, .after = "Team")
+cfb18 = cfb18 %>% add_column(Year = 2018, .after = "Team")
+cfb19 = cfb19 %>% add_column(Year = 2019, .after = "Team")
+cfb20 = cfb20 %>% add_column(Year = 2020, .after = "Team")
+
+# The first three years have less variable than the latter 5. To be able to
+# combine all years into one data frame, it is necessary to identify which
+# columns are not in all years to delete them
+compare_df_cols(cfb13, cfb16)
+
+# There were 7 variable not present in the first 3 years, and one not in the 
+# latter 5 that need to be removed.
+cfb16 = subset(cfb16, select = -...40)
+cfb17 = subset(cfb17, select = -...40)
+cfb18 = subset(cfb18, select = -...40)
+cfb19 = subset(cfb19, select = -...40)
+cfb20 = subset(cfb20, select = -...40)
+cfb16 = subset(cfb16, select = -Avg.Yards.per.Kickoff.Return.Allowed)
+cfb17 = subset(cfb17, select = -Avg.Yards.per.Kickoff.Return.Allowed)
+cfb18 = subset(cfb18, select = -Avg.Yards.per.Kickoff.Return.Allowed)
+cfb19 = subset(cfb19, select = -Avg.Yards.per.Kickoff.Return.Allowed)
+cfb20 = subset(cfb20, select = -Avg.Yards.per.Kickoff.Return.Allowed)
+cfb16 = subset(cfb16, select = -Kickoff.Return.Def.Rank)
+cfb17 = subset(cfb17, select = -Kickoff.Return.Def.Rank)
+cfb18 = subset(cfb18, select = -Kickoff.Return.Def.Rank)
+cfb19 = subset(cfb19, select = -Kickoff.Return.Def.Rank)
+cfb20 = subset(cfb20, select = -Kickoff.Return.Def.Rank)
+cfb16 = subset(cfb16, select = -Kickoff.Touchbacks)
+cfb17 = subset(cfb17, select = -Kickoff.Touchbacks)
+cfb18 = subset(cfb18, select = -Kickoff.Touchbacks)
+cfb19 = subset(cfb19, select = -Kickoff.Touchbacks)
+cfb20 = subset(cfb20, select = -Kickoff.Touchbacks)
+cfb16 = subset(cfb16, select = -Opp.Kickoff.Return.Touchdowns.Allowed)
+cfb17 = subset(cfb17, select = -Opp.Kickoff.Return.Touchdowns.Allowed)
+cfb18 = subset(cfb18, select = -Opp.Kickoff.Return.Touchdowns.Allowed)
+cfb19 = subset(cfb19, select = -Opp.Kickoff.Return.Touchdowns.Allowed)
+cfb20 = subset(cfb20, select = -Opp.Kickoff.Return.Touchdowns.Allowed)
+cfb16 = subset(cfb16, select = -Opp.Kickoff.Returns)
+cfb17 = subset(cfb17, select = -Opp.Kickoff.Returns)
+cfb18 = subset(cfb18, select = -Opp.Kickoff.Returns)
+cfb19 = subset(cfb19, select = -Opp.Kickoff.Returns)
+cfb20 = subset(cfb20, select = -Opp.Kickoff.Returns)
+cfb16 = subset(cfb16, select = -Opponent.Kickoff.Return.Yards)
+cfb17 = subset(cfb17, select = -Opponent.Kickoff.Return.Yards)
+cfb18 = subset(cfb18, select = -Opponent.Kickoff.Return.Yards)
+cfb19 = subset(cfb19, select = -Opponent.Kickoff.Return.Yards)
+cfb20 = subset(cfb20, select = -Opponent.Kickoff.Return.Yards)
+cfb13 = subset(cfb13, select = -Total.TDs)
+cfb14 = subset(cfb14, select = -Total.TDs)
+cfb15 = subset(cfb15, select = -Total.TDs)
+
+#Combine into one file for the 8 years in total
+cfb = rbind(cfb13, cfb14, cfb15, cfb16, cfb17, cfb18, cfb19,cfb20)
+```
+
+## Exploratory Data Analysis
+For this data set, there is 146 total variables for different team statistics relating to offense, defense, special teams, and overall team performance. The most useful insights that can be provided for this data set are centered around correlation. Determining which statistics have strong correlation with metrics for team success will provide useful insight for coaches on what parts of a game plan to give the most attention to. I have identified 15 specific relations from my experience playing football that I will be investigating to see if the data reflects a strong correlation that could provide valuable insight. These 15 relations are:
+- # of Offensive Plays vs. Offensive Rank
+- Pass Yards per Attempt vs. Interceptions Thrown
+- Yards per Completion Allowed vs. TD Allowed
+- Penalty Rank vs. Time of Possession Rank
+- Redzone Offense Rank vs. Win Total
+- Redzone Defense Rank vs. Win Total
+- Rushing Offense Rank vs. Offense Rank
+- Passing Offense Rank vs. Offense Rank
+- Offense Rank vs. Win Total
+- Defense Rank vs. Win Total
+- 3rd Down Percentage vs. Time of Possession Rank
+- 3rd Down Percentage vs. Offense Rank
+- Opponent 3rd Down Percentage vs. Time of Possession Rank
+- Opponent 3rd Down Percentage vs. Defense Rank
+- Turnover Margin vs. Win Total
+
+```{r, echo=TRUE, eval=TRUE}
+#Scatter Plot and Correlation Coefficient for Number of Offensive Plays vs. Offensive Rank
+ggplot(cfb, aes(x=Off.Rank, y=Off.Plays)) + geom_point(color="orange")
+cor(cfb$Off.Plays, cfb$Off.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Pass Yards per Attempt vs. Interceptions Thrown
+ggplot(cfb, aes(x=Interceptions.Thrown.x, y=Pass.Yards.Attempt)) + geom_point(color="orange")
+cor(cfb$Pass.Yards.Attempt, cfb$Interceptions.Thrown.x, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Yards per Completion Allowed vs. TD Allowed
+ggplot(cfb, aes(x=Touchdowns.Allowed, y=Yards.Completion.Allowed)) + geom_point(color="orange")
+cor(cfb$Yards.Completion.Allowed, cfb$Touchdowns.Allowed, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Penalty Rank vs. Time of Possession Rank
+ggplot(cfb, aes(x=Time.of.Possession.Rank, y=Penalty.Rank)) + geom_point(color="orange")
+cor(cfb$Penalty.Rank, cfb$Time.of.Possession.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Redzone Offense Rank vs. Win Total
+ggplot(cfb, aes(x=Win, y=Redzone.Off.Rank)) + geom_point(color="orange")
+cor(cfb$Redzone.Off.Rank, cfb$Win, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Redzone Defense Rank vs. Win Total
+ggplot(cfb, aes(x=Win, y=Redzone.Def.Rank)) + geom_point(color="orange")
+cor(cfb$Redzone.Def.Rank, cfb$Win, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Rushing Offense Rank vs. Offense Rank
+ggplot(cfb, aes(x=Off.Rank, y=Rushing.Off.Rank)) + geom_point(color="orange")
+cor(cfb$Rushing.Off.Rank, cfb$Off.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Passing Offense Rank vs. Offense Rank
+ggplot(cfb, aes(x=Off.Rank, y=Passing.Off.Rank)) + geom_point(color="orange")
+cor(cfb$Passing.Off.Rank, cfb$Off.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Offense Rank vs. Win Total
+ggplot(cfb, aes(x=Win, y=Off.Rank)) + geom_point(color="orange")
+cor(cfb$Off.Rank, cfb$Win, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Defense Rank vs. Win Total
+ggplot(cfb, aes(x=Win, y=Def.Rank)) + geom_point(color="orange")
+cor(cfb$Def.Rank, cfb$Win, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for 3rd Down Percentage vs. Time of Possession Rank
+ggplot(cfb, aes(x=Time.of.Possession.Rank, y=X3rd.Percent)) + geom_point(color="orange")
+cor(cfb$X3rd.Percent, cfb$Time.of.Possession.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for 3rd Down Percentage vs. Offense Rank
+ggplot(cfb, aes(x=Off.Rank, y=X3rd.Percent)) + geom_point(color="orange")
+cor(cfb$X3rd.Percent, cfb$Off.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Opponent 3rd Down Percentage vs. Time of Possession Rank
+ggplot(cfb, aes(x=Time.of.Possession.Rank, y=Opponent.3rd.Percent)) + geom_point(color="orange")
+cor(cfb$Opponent.3rd.Percent, cfb$Time.of.Possession.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Opponent 3rd Down Percentage vs. Defense Rank
+ggplot(cfb, aes(x=Def.Rank, y=Opponent.3rd.Percent)) + geom_point(color="orange")
+cor(cfb$Opponent.3rd.Percent, cfb$Def.Rank, use="complete.obs")
+
+#Scatter Plot and Correlation Coefficient for Turnover Margin vs. Win Total
+ggplot(cfb, aes(x=Win, y=Turnover.Margin)) + geom_point(color="orange")
+cor(cfb$Turnover.Margin, cfb$Win, use="complete.obs")
+
+```
+
+After exploring these initial relations, I believe there is useful information to be gained from the correlation between different team statistics in order to have a team best prepared for on field success. For this reason, my goal is to create a shiny app that allows a user to select any two of the statistics included in this data set and see a scatter plot along with correlation coefficient for those two statistics. This will enable any user to explore every inch of this data set and answer their most pressing questions on how one stat relates to another.
